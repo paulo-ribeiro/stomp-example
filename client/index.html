@@ -1,0 +1,99 @@
+<!DOCTYPE <!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Page Title</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const ws;
+
+    const connect = () => {
+      if(!ws || ws.readtState !== 1) {
+        ws = new WebSocket("ws://localhost:8181", "v10.stomp");
+        ws.addEventListener("message", onMessageHandler);
+        ws.addEventListener("open", onOpenHandler);
+        ws.addEventListener("close", onCloseHandler);
+      }
+    };
+
+    connect();
+
+    const frame = "CONNECT\n"
+      + "login: websockets\n"
+      + "passcode: rabbitmq\n"
+      + "nickname: anonymous\n"
+      + "\n\n\0";
+
+    ws.send(frame);
+
+    const StockForm = ({ onHandleSubmit, onHandleChange, symbol }) => (
+      <form onSubmit={onHandleSubmit}>
+        <input type="text" name="symbol" value={symbol} onChange={onHandleChange} />
+        <button type="submit">Add</button>
+      </form>
+    );
+
+    const StockTable = ({ stocks, onHandleRemove }) => (
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Price</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            stocks.length > 0
+            ? stocks.map(stock => 
+                <tr>
+                  <td>
+                    <h3>{stock.symbol}</h3>
+                  </td>
+                  <td>
+                    <h3>Retrieving...</h3>
+                  </td>
+                  <td>
+                    <button onClick={() => onHandleRemove(stock.symbol)}>
+                      Remove
+                    </button>
+                  </td>
+                <tr>
+              )
+            : <tr><td colSpan={3}>No stocks found, add one above.<td></tr>
+          }
+        </tbody>
+      </table>
+    );
+
+    class App extends React.Component {
+      state = {
+        stocks: []
+      };
+
+      render() {
+        <React.Fragment>
+          <StockForm/>
+          <StockTable/>
+        </React.Fragment>
+      }
+    }
+
+    ReactDOM.render(
+      <App/>,
+      document.getElementById("root")
+    );
+
+  </script>
+</body>
+
+</html>
