@@ -13,27 +13,9 @@
 
 <body>
   <div id="root"></div>
+
+  <script src="../helpers/stomp-helper.js" type="text/javascript"></script>
   <script type="text/babel">
-    const ws;
-
-    const connect = () => {
-      if(!ws || ws.readtState !== 1) {
-        ws = new WebSocket("ws://localhost:8181", "v10.stomp");
-        ws.addEventListener("message", onMessageHandler);
-        ws.addEventListener("open", onOpenHandler);
-        ws.addEventListener("close", onCloseHandler);
-      }
-    };
-
-    connect();
-
-    const frame = "CONNECT\n"
-      + "login: websockets\n"
-      + "passcode: rabbitmq\n"
-      + "nickname: anonymous\n"
-      + "\n\n\0";
-
-    ws.send(frame);
 
     const StockForm = ({ onHandleSubmit, onHandleChange, symbol }) => (
       <form onSubmit={onHandleSubmit}>
@@ -67,17 +49,91 @@
                       Remove
                     </button>
                   </td>
-                <tr>
-              )
+                <tr>)
             : <tr><td colSpan={3}>No stocks found, add one above.<td></tr>
           }
         </tbody>
       </table>
     );
-
+    
+    let ws;
     class App extends React.Component {
       state = {
-        stocks: []
+        stocks: {},
+        status: false
+      };
+
+      onMessageHandler = e => {
+        const frame = Stomp.processFrame(e.data);
+        switch (frame["command"]) {
+          case "CONNECTED":
+            console.log("STOMP connection achieved");
+            this.setState({ status: true });
+            break;
+          case "MESSAGE":
+            const destination = frame["headers"]["destination"];
+            const content;
+            try {
+              content = JSON.parse(frame["content"]);
+            } catch(err) {
+              console.log("exception: ", err);
+            }
+            const subStock = destination.substring(destination.indexOf(".") + 1, destination.length);
+            // UPDATE STOCK PRICE
+            console.log(subStock);
+            break;
+        }
+      };
+
+      onOpenHandler = e => {
+        console.log("Connection to server opened.");
+        Stomp.sendFrame(ws, {
+          command: "CONNECT",
+          headers: {
+            login: "websockets",
+            passcode: "rabbitmq"
+          },
+          content: ""
+        });
+      };
+
+      const onCloseHandler = () => {
+        this.setState({ status: false });
+      };
+
+      onComponentDidMount() {
+        if(!ws || ws.readtState !== 1) {
+          ws = new WebSocket("ws://localhost:8181", "v10.stomp");
+          ws.addEventListener("message", this.onMessageHandler);
+          ws.addEventListener("open", this.onOpenHandler);
+          ws.addEventListener("close", onCloseHandler);
+        }
+      }
+
+      const handleAddStock = symbol => {
+        Stomp.sendFrame(ws, {
+          command: "SUBSCRIBE",
+          headers: {
+            destination: "/queue/stocks." + symbol
+          },
+          content: ""
+        });
+      };
+
+      const handleRemoveStock = symbol => {
+        Stomp.sendFrame(ws, {
+          command: "UNSUBSCRIBE",
+          headers: {
+            destination: "/queue/stocks." + symbol
+          },
+          content: ""
+        });
+      };
+
+      const handleLogoff = () => {
+        Stomp.sendFrame(ws, {
+          command: "DISCONNECT"
+        });
       };
 
       render() {
