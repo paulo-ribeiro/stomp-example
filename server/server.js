@@ -26,27 +26,29 @@ connection.on("ready", () => {
   connection.queue("stocks.result",
     { autoDelete: false, durable: true },
     q => {
-      const data;
-      try {
-        data = JSON.parse(message.data.toString('utf8'));
-      } catch (err) {
-        console.log(err);
-      }
-      data.forEach(item => {
-        Object.keys(stocks).forEach(client => {
-          const ws = stocks[client].ws;
-          Object.keys(stocks[client]).forEach(symbol => {
-            if (symbol === item["symbol"]) {
-              stocks[client][symbol] = item["price"];
-              const price = parseFloat(stocks[client][symbol]);
-              Stomp.send_frame(ws, {
-                "command": "MESSAGE",
-                "headers": {
-                  "destination": "/queue/stocks." + symbol
-                },
-                content: JSON.stringify({ price })
-              });
-            }
+      q.subscribe(message => {
+        let data;
+        try {
+          data = JSON.parse(message.data.toString('utf8'));
+        } catch (err) {
+          console.log(err);
+        }
+        data.forEach(item => {
+          Object.keys(stocks).forEach(client => {
+            const ws = stocks[client].ws;
+            Object.keys(stocks[client]).forEach(symbol => {
+              if (symbol === item["symbol"]) {
+                stocks[client][symbol] = item["price"];
+                const price = parseFloat(stocks[client][symbol]);
+                Stomp.send_frame(ws, {
+                  "command": "MESSAGE",
+                  "headers": {
+                    "destination": "/queue/stocks." + symbol
+                  },
+                  content: JSON.stringify({ price })
+                });
+              }
+            });
           });
         });
       });
@@ -76,6 +78,7 @@ wss.on("connection", ws => {
   stocks[sessionId]["ws"] = ws;
 
   ws.on("message", msg => {
+    console.log("msg", msg)
     const frame = Stomp.processFrame(msg);
     const headers = frame["headers"];
     switch (frame["command"]) {

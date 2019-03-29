@@ -17,11 +17,17 @@
   <script src="../helpers/stomp-helper.js" type="text/javascript"></script>
   <script type="text/babel">
 
-    const StockForm = ({ onHandleSubmit, onHandleChange, symbol }) => (
-      <form onSubmit={onHandleSubmit}>
-        <input type="text" name="symbol" value={symbol} onChange={onHandleChange} />
-        <button type="submit">Add</button>
-      </form>
+    const StockForm = ({ onHandleSubmit, onHandleChange, symbol, status }) => (
+      status
+        ? <form onSubmit={onHandleSubmit}>
+          <input type="text" name="symbol" value={symbol} onChange={onHandleChange} />
+          <button 
+            disabled={!(symbol.trim())}
+            type="submit">
+            Add
+          </button>
+        </form>
+        : <p>You are offline.</p>
     );
 
     const StockTable = ({ stocks, onHandleRemove }) => (
@@ -35,32 +41,42 @@
         </thead>
         <tbody>
           {
-            stocks.length > 0
-            ? stocks.map(stock => 
-                <tr>
+            Object.keys(stocks).length > 0
+            ? Object.keys(stocks).map(key => 
+                <tr key={key}>
                   <td>
-                    <h3>{stock.symbol}</h3>
+                    {stocks[key].symbol}
                   </td>
                   <td>
-                    <h3>Retrieving...</h3>
+                    {stocks[key].price}
                   </td>
                   <td>
-                    <button onClick={() => onHandleRemove(stock.symbol)}>
+                    <button
+                      onClick={() => onHandleRemove(stocks[key].symbol)}>
                       Remove
                     </button>
                   </td>
-                <tr>)
-            : <tr><td colSpan={3}>No stocks found, add one above.<td></tr>
+                </tr>)
+            : <tr><td colSpan={3}>No stocks found, add one above.</td></tr>
           }
         </tbody>
       </table>
+    );
+
+    const ConnectionBtn = ({ status, onConnect, onDisconnect }) => (
+      <div>
+        <button onClick={status ? onDisconnect : onConnect}>
+          {status ? "Online" : "Offline"}
+        </button>
+      </div>
     );
     
     let ws;
     class App extends React.Component {
       state = {
         stocks: {},
-        status: false
+        status: false,
+        symbol: ""
       };
 
       onMessageHandler = e => {
@@ -72,7 +88,7 @@
             break;
           case "MESSAGE":
             const destination = frame["headers"]["destination"];
-            const content;
+            let content;
             try {
               content = JSON.parse(frame["content"]);
             } catch(err) {
@@ -95,22 +111,40 @@
           },
           content: ""
         });
+        this.setState({ status: true });
       };
 
-      const onCloseHandler = () => {
+      onCloseHandler = () => {
+        console.log("Connection to server terminated");
         this.setState({ status: false });
       };
 
-      onComponentDidMount() {
+      connect = () => {
         if(!ws || ws.readtState !== 1) {
           ws = new WebSocket("ws://localhost:8181", "v10.stomp");
           ws.addEventListener("message", this.onMessageHandler);
           ws.addEventListener("open", this.onOpenHandler);
-          ws.addEventListener("close", onCloseHandler);
+          ws.addEventListener("close", this.onCloseHandler);
+          this.setState({ status: true });
         }
       }
 
-      const handleAddStock = symbol => {
+      componentDidMount() {
+        this.connect();
+      }
+
+      handleAddStock = symbol => {
+        this.setState(state => ({
+          ...state,
+          stocks: {
+            ...state.stocks,
+            [symbol]: { 
+              symbol,
+              price: "Retrieving..."
+            }
+          }
+        }));
+
         Stomp.sendFrame(ws, {
           command: "SUBSCRIBE",
           headers: {
@@ -120,7 +154,19 @@
         });
       };
 
-      const handleRemoveStock = symbol => {
+      handleRemoveStock = symbol => {
+        this.setState(state => {
+          let data = state.stocks;
+          data[symbol] = undefined;
+          delete data[symbol];
+          return {
+            ...state,
+            stocks: {
+              ...data
+            }
+          };
+        });
+
         Stomp.sendFrame(ws, {
           command: "UNSUBSCRIBE",
           headers: {
@@ -130,17 +176,37 @@
         });
       };
 
-      const handleLogoff = () => {
+      logoff = () => {
         Stomp.sendFrame(ws, {
           command: "DISCONNECT"
         });
       };
 
+      change = e => this.setState({ [e.target.name]: e.target.value });
+
+      submit = e => {
+        e.preventDefault();
+        this.handleAddStock(this.state.symbol);
+        this.setState({ symbol: "" });
+      };
+
       render() {
-        <React.Fragment>
-          <StockForm/>
-          <StockTable/>
-        </React.Fragment>
+        return (
+          <React.Fragment>
+            <StockForm 
+              onHandleSubmit={this.submit}
+              onHandleChange={this.change}
+              symbol={this.state.symbol}
+              status={this.state.status} />
+            <StockTable
+              stocks={this.state.stocks}
+              onHandleRemove={this.handleRemoveStock} />
+            <ConnectionBtn
+              status={this.state.status}
+              onConnect={this.connect}
+              onDisconnect={this.logoff} />
+          </React.Fragment>
+        );
       }
     }
 

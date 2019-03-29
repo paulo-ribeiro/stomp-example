@@ -17,17 +17,20 @@
         .splice(i + 1, lines.length - i)
         .join("\n");
       frame["content"] = frame["content"]
-        .substr(0, frame["content"].length - 1);
+        .substring(0, frame["content"].length - 1);
     }
     return frame;
   };
 
   exports.sendFrame = (ws, frame) => {
-    const data = frame["command"] + "\n";
-    const headerContent = "";
-    Object.keys(frame)
-      .forEach(key =>
-        headerContent += key + ": " + frame["headers"][key] + "\n");
+    let data = frame["command"] + "\n";
+    let headerContent = "";
+
+    if(frame["headers"])
+      Object.keys(frame["headers"])
+        .forEach(key =>
+          headerContent += key + ": " + frame["headers"][key] + "\n");
+
     data += headerContent + "\n\n" + frame["content"] + "\n\0";
     ws.send(data);
   };

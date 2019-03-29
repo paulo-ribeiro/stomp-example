@@ -10,7 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "node-amqp": "^1.2.1",
-    "node-uuid": "^1.4.8"
+    "node-uuid": "^1.4.8",
+    "amqplib": "^0.2.0",
+    "ws": "^0.4.31",
+    "amqp": "~0.2.0"
   }
 }
